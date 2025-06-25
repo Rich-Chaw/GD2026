@@ -1,0 +1,14 @@
+/.vscode/
+/code/build/
+/code/FINDER_CN/*.cpp
+/code/FINDER_CN_cost/*.cpp
+/code/FINDER_ND/*.cpp
+/code/FINDER_ND_cost/*.cpp
+
+
+/data/
+/Figures and Tables/
+
+*.pyd
+models/
+result/

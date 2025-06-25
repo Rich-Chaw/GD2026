@@ -1,0 +1,19 @@
+metadata_version: 1
+name: Find key players in complex networks through deep reinforcement learning
+description: Find key players in complex networks through deep reinforcement learning
+authors:
+- name: Changjun Fan
+  affiliations:
+  - name: National University of Defense Technology (China)
+- name: Li Zeng
+  affiliations:
+  - name: National University of Defense Technology (China)
+- name: Yizhou Sun
+  affiliations:
+  - name: University of California, Los Angeles (USA)
+- name: Yang-Yu Liu
+  affiliations:
+  - name: Harvard Medical School
+corresponding_contributor:
+  name: Yizhou Sun
+  email: yzsun@cs.ucla.edu
