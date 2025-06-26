@@ -333,7 +333,8 @@ class GraphDQN:
         elif self.g_type == 'barabasi_albert':
             g = nx.barabasi_albert_graph(n=cur_n, m=4)
         elif self.g_type == 'ego':
-            g = nx.ego_graph(nx.barabasi_albert_graph(n=cur_n, m=4), 0)
+            print("please implement one ego graph generation")
+            exit()
         return g
 
     def gen_new_graphs(self, num_min, num_max):
