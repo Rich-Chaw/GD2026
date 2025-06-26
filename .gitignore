@@ -1,10 +1,12 @@
-/.vscode/
+.vscode/
+__pycache__/
 /code/build/
 /code/FINDER_CN/*.cpp
 /code/FINDER_CN_cost/*.cpp
 /code/FINDER_ND/*.cpp
 /code/FINDER_ND_cost/*.cpp
 
+/code/FINDER_ND/dataset/
 
 /data/
 /Figures and Tables/
