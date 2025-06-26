@@ -1,14 +1,22 @@
-/.vscode/
+.vscode/
+__pycache__/
 /code/build/
 /code/FINDER_CN/*.cpp
 /code/FINDER_CN_cost/*.cpp
 /code/FINDER_ND/*.cpp
 /code/FINDER_ND_cost/*.cpp
+/code/FINDER_ND_percolation/*.cpp
 
+/code/FINDER_CN/models/
+/code/FINDER_CN_cost/models/
+/code/FINDER_ND/models/
+/code/FINDER_ND_cost/models/
+/code/FINDER_percolation/models/
 
+/code/test
+GraphSpectualDM/
 /data/
 /Figures and Tables/
 
 *.pyd
-models/
 result/
