@@ -377,7 +377,7 @@ class GraphDQN:
         sys.stdout.flush()
         cdef double result_degree = 0.0
         cdef double result_betweeness = 0.0
-        if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert']:
+        if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert','ego']:
             for i in tqdm(range(n_valid)):
                 g = self.gen_graph(NUM_MIN, NUM_MAX)
                 g_degree = g.copy()
@@ -387,7 +387,7 @@ class GraphDQN:
                 val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
                 result_betweeness += val_betweenness
                 self.InsertGraph(g, is_test=True)
-        elif self.g_type in ['ego']:
+        elif self.g_type in []:
             graphs = pickle.load(open(f'dataset/GSDM/{self.real_graph}_ego_valid.pkl', 'rb'))
             for i in tqdm(range(n_valid)):
                 g = graphs[i]

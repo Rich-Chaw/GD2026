@@ -8,7 +8,13 @@ import FINDER_ND as FINDER
 # from GraphSpectualDM.generate_graphs import generate_graphs_random
 import subprocess
 
-subprocess.run('conda run -n torch_py38 python ../GraphSpectualDM/generate_graphs.py', shell=True)
+import pickle
+
+graphs = pickle.load(open(f'FINDER_ND/dataset/GSDM/Digg_ego_0.pkl', 'rb'))
+
+graphs = pickle.load(open(f'FINDER_ND/dataset/GSDM/Digg_ego_valid.pkl', 'rb'))
+
+# subprocess.run('conda run -n torch_py38 python ../GraphSpectualDM/generate_graphs.py', shell=True)
 
 
 
