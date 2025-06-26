@@ -23,12 +23,13 @@ import nstep_replay_mem_prioritized
 import mvc_env
 import utils
 import os
+import pickle
 
 # Hyper Parameters:
 cdef double GAMMA = 1  # decay rate of past observations
 cdef int UPDATE_TIME = 1000
 cdef int EMBEDDING_SIZE = 64
-cdef int MAX_ITERATION = 1000000      #1000000 orgin
+cdef int MAX_ITERATION = 5000      #1,000,000 orgin,every 5000 generate new graphs
 cdef double LEARNING_RATE = 0.0001   #dai
 cdef int MEMORY_SIZE = 500000
 cdef double Alpha = 0.0001 ## weight of reconstruction loss
@@ -41,7 +42,7 @@ cdef double TD_err_upper = 1.  # clipped abs error
 ########################## hyperparameters for priority(end)#########################################
 cdef int N_STEP = 5
 cdef int NUM_MIN = 30
-cdef int NUM_MAX = 50
+cdef int NUM_MAX = 100
 cdef int REG_HIDDEN = 32
 cdef int BATCH_SIZE = 64
 cdef double initialization_stddev = 0.01  # 权重初始化的方差
@@ -62,7 +63,8 @@ class GraphDQN:
         # init some parameters
         self.embedding_size = EMBEDDING_SIZE
         self.learning_rate = LEARNING_RATE
-        self.g_type = 'barabasi_albert' #barabasi_albert,erdos_renyi, powerlaw, small-world, ego
+        self.g_type = 'ego' #barabasi_albert,erdos_renyi, powerlaw, small-world, ego
+        self.real_graph = "Digg"
         self.num_min = NUM_MIN
         self.num_max = NUM_MAX
         self.TrainSet = graph.py_GSet()
@@ -343,8 +345,12 @@ class GraphDQN:
                 g = self.gen_graph(num_min, num_max)
                 self.InsertGraph(g, is_test=False)
         elif self.g_type in ['ego']:
-            print("please implement ego dataset building")
-            exit()
+            if not hasattr(self, 'dataset_id'):
+                self.dataset_id = 0
+            graphs = pickle.load(open(f'dataset/GSDM/{self.real_graph}_ego_{self.dataset_id}.pkl', 'rb'))
+            self.dataset_id += 1
+            for i in tqdm(range(1000)):
+                self.InsertGraph(graphs[i], is_test=False)
             
 
     def ClearTrainGraphs(self):
@@ -371,15 +377,28 @@ class GraphDQN:
         sys.stdout.flush()
         cdef double result_degree = 0.0
         cdef double result_betweeness = 0.0
-        for i in tqdm(range(n_valid)):
-            g = self.gen_graph(NUM_MIN, NUM_MAX)
-            g_degree = g.copy()
-            g_betweenness = g.copy()
-            val_degree, sol = self.HXA(g_degree, 'HDA')
-            result_degree += val_degree
-            val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
-            result_betweeness += val_betweenness
-            self.InsertGraph(g, is_test=True)
+        if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert']:
+            for i in tqdm(range(n_valid)):
+                g = self.gen_graph(NUM_MIN, NUM_MAX)
+                g_degree = g.copy()
+                g_betweenness = g.copy()
+                val_degree, sol = self.HXA(g_degree, 'HDA')
+                result_degree += val_degree
+                val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
+                result_betweeness += val_betweenness
+                self.InsertGraph(g, is_test=True)
+        elif self.g_type in ['ego']:
+            graphs = pickle.load(open(f'dataset/GSDM/{self.real_graph}_ego_valid.pkl', 'rb'))
+            for i in tqdm(range(n_valid)):
+                g = graphs[i]
+                g_degree = g.copy()
+                g_betweenness = g.copy()
+                val_degree, sol = self.HXA(g_degree, 'HDA')
+                result_degree += val_degree
+                val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
+                result_betweeness += val_betweenness
+                self.InsertGraph(g, is_test=True)
+
         print ('Validation of HDA: %.6f'%(result_degree / n_valid))
         print ('Validation of HBA: %.6f'%(result_betweeness / n_valid))
 
