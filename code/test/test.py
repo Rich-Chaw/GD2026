@@ -10,13 +10,12 @@ import subprocess
 
 import pickle
 
-graphs = pickle.load(open(f'FINDER_ND/dataset/GSDM/Digg_ego_0.pkl', 'rb'))
+for i in range(62):
+    graphs = pickle.load(open(f'../../../dataset/synthetic/GSDM/Digg_ego_train_{i}.pkl', 'rb'))
 
-graphs = pickle.load(open(f'FINDER_ND/dataset/GSDM/Digg_ego_valid.pkl', 'rb'))
+graphs = pickle.load(open(f'../../../dataset/synthetic/GSDM/Digg_ego_valid.pkl', 'rb'))
 
 # subprocess.run('conda run -n torch_py38 python ../GraphSpectualDM/generate_graphs.py', shell=True)
-
-
 
 # # 虚拟环境1中的Python解释器路径
 # virtualenv1_python = "/path/to/virtualenv1/bin/python"

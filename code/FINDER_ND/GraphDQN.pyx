@@ -29,7 +29,7 @@ import pickle
 cdef double GAMMA = 1  # decay rate of past observations
 cdef int UPDATE_TIME = 1000
 cdef int EMBEDDING_SIZE = 64
-cdef int MAX_ITERATION = 5000      #1,000,000 orgin,every 5000 generate new graphs
+cdef int MAX_ITERATION = 1000000      #1,000,000 orgin,every 5000 generate new graphs
 cdef double LEARNING_RATE = 0.0001   #dai
 cdef int MEMORY_SIZE = 500000
 cdef double Alpha = 0.0001 ## weight of reconstruction loss
@@ -64,7 +64,10 @@ class GraphDQN:
         self.embedding_size = EMBEDDING_SIZE
         self.learning_rate = LEARNING_RATE
         self.g_type = 'ego' #barabasi_albert,erdos_renyi, powerlaw, small-world, ego
-        self.real_graph = "Digg"
+        self.target_graph = "Digg"
+        self.train_dir = f"../../dataset/synthetic/GSDM"
+        self.valid_dir = f"../../dataset/synthetic/GSDM"
+        self.dataset_id = 0    # train ego graph id,begin with 0
         self.num_min = NUM_MIN
         self.num_max = NUM_MAX
         self.TrainSet = graph.py_GSet()
@@ -133,10 +136,11 @@ class GraphDQN:
         # saving and loading networks
         self.saver = tf1.train.Saver(max_to_keep=None)
         #self.session = tf.InteractiveSession()
-        config = tf1.ConfigProto(device_count={"CPU": 8},  # limit to num_cpu_core CPU usage
+        config = tf1.ConfigProto(device_count={"CPU": 9},  # limit to num_cpu_core CPU usage
                                 inter_op_parallelism_threads=100,
                                 intra_op_parallelism_threads=100,
-                                log_device_placement=False)
+                                log_device_placement=False,
+                                allow_soft_placement=True)
         config.gpu_options.allow_growth = True
         self.session = tf1.Session(config = config)
 
@@ -346,9 +350,8 @@ class GraphDQN:
                 g = self.gen_graph(num_min, num_max)
                 self.InsertGraph(g, is_test=False)
         elif self.g_type in ['ego']:
-            if not hasattr(self, 'dataset_id'):
-                self.dataset_id = 0
-            graphs = pickle.load(open(f'dataset/GSDM/{self.real_graph}_ego_{self.dataset_id}.pkl', 'rb'))
+            graphs = pickle.load(open(f"{self.train_dir}/{self.target_graph}_ego_train_{self.dataset_id}.pkl", 'rb'))
+            print("generate new training graphs from ", self.train_dir)
             self.dataset_id += 1
             for i in tqdm(range(1000)):
                 self.InsertGraph(graphs[i], is_test=False)
@@ -378,7 +381,7 @@ class GraphDQN:
         sys.stdout.flush()
         cdef double result_degree = 0.0
         cdef double result_betweeness = 0.0
-        if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert','ego']:
+        if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert']:
             for i in tqdm(range(n_valid)):
                 g = self.gen_graph(NUM_MIN, NUM_MAX)
                 g_degree = g.copy()
@@ -388,8 +391,9 @@ class GraphDQN:
                 val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
                 result_betweeness += val_betweenness
                 self.InsertGraph(g, is_test=True)
-        elif self.g_type in []:
-            graphs = pickle.load(open(f'dataset/GSDM/{self.real_graph}_ego_valid.pkl', 'rb'))
+        elif self.g_type in ['ego']:
+            graphs = pickle.load(open(f'{self.valid_dir}/{self.target_graph}_ego_valid.pkl', 'rb'))
+            print("generate new validation graphs from ", self.valid_dir)
             for i in tqdm(range(n_valid)):
                 g = graphs[i]
                 g_degree = g.copy()
