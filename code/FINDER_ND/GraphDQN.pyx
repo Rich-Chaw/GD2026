@@ -351,7 +351,7 @@ class GraphDQN:
                 self.InsertGraph(g, is_test=False)
         elif self.g_type in ['ego']:
             graphs = pickle.load(open(f"{self.train_dir}/{self.target_graph}_ego_train_{self.dataset_id}.pkl", 'rb'))
-            print("generate new training graphs from ", self.train_dir)
+            print("generate new training graphs from ", self.train_dir," with id ", self.dataset_id)
             self.dataset_id += 1
             for i in tqdm(range(1000)):
                 self.InsertGraph(graphs[i], is_test=False)
@@ -402,6 +402,7 @@ class GraphDQN:
                 result_degree += val_degree
                 val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
                 result_betweeness += val_betweenness
+                print("test graph insert in line 405")
                 self.InsertGraph(g, is_test=True)
 
         print ('Validation of HDA: %.6f'%(result_degree / n_valid))
@@ -623,14 +624,14 @@ class GraphDQN:
         cdef double frac, start, end
         
         cfd = os.path.dirname(__file__).split("\\")[0]
-        save_dir = '%s/models'%(cfd)
+        save_dir = '%s/models/%s'%(cfd,self.g_type)
         if not os.path.exists(save_dir):
-            os.mkdir(save_dir)
-        VCFile = '%s/%s/ModelVC_%d_%d.csv'%(save_dir,self.g_type, NUM_MIN, NUM_MAX)
+            os.makedirs(save_dir)
+        VCFile = '%s/ModelVC_%d_%d.csv'%(save_dir, NUM_MIN, NUM_MAX)
         f_out = open(VCFile, 'w')
         t_train_start = time.time()
         for iter in range(MAX_ITERATION):
-            start = time.clock()
+            start = time.perf_counter()
             ###########-----------------------normal training data setup(start) -----------------##############################
             if iter and iter % 5000 == 0:
                 self.gen_new_graphs(NUM_MIN, NUM_MAX)
@@ -652,10 +653,10 @@ class GraphDQN:
                 f_out.flush()
                 print('iter %d, eps %.4f, average size of vc:%.6f'%(iter, eps, frac/n_valid))
                 print ('testing 200 graphs time: %.2fs'%(test_end-test_start))
-                N_end = time.clock()
+                N_end = time.perf_counter()
                 print ('300 iterations total time: %.2fs\n'%(N_end-N_start))
                 sys.stdout.flush()
-                model_path = '%s/%s/nrange_%d_%d_iter_%d.ckpt' % (save_dir,self.g_type,NUM_MIN, NUM_MAX, iter)
+                model_path = '%s/nrange_%d_%d_iter_%d.ckpt' % (save_dir,NUM_MIN, NUM_MAX, iter)
                 self.SaveModel(model_path)
             if iter % UPDATE_TIME == 0:
                 self.TakeSnapShot()
