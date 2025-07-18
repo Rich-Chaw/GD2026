@@ -11,8 +11,8 @@ def main():
 
     cfd = os.path.dirname(__file__)
     data_test_path = '%s/../../data/synthetic/uniform_cost/'%(cfd)
-    # data_test_name = ['30-50', '50-100', '100-200', '200-300', '300-400', '400-500']
-    data_test_name = ['30-50']
+    data_test_name = ['30-50', '50-100', '100-200', '200-300', '300-400', '400-500']
+    # data_test_name = ['30-50']
 
     
     result_path = '%s/result/synthetic'%(cfd)

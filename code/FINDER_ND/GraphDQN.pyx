@@ -42,7 +42,7 @@ cdef double TD_err_upper = 1.  # clipped abs error
 ########################## hyperparameters for priority(end)#########################################
 cdef int N_STEP = 5
 cdef int NUM_MIN = 30
-cdef int NUM_MAX = 100
+cdef int NUM_MAX = 120
 cdef int REG_HIDDEN = 32
 cdef int BATCH_SIZE = 64
 cdef double initialization_stddev = 0.01  # 权重初始化的方差
@@ -59,22 +59,31 @@ cdef int embeddingMethod = 1   #0:structure2vec; 1:graphsage
 
 class GraphDQN:
 
-    def __init__(self):
+    def __init__(self,
+        g_type = 'barabasi_albert',
+        target_graph = "Digg",
+        num_min = 30,
+        num_max = 120,
+        model_file = None,
+        encoder = "gSage"
+    ):
         # init some parameters
         self.embedding_size = EMBEDDING_SIZE
         self.learning_rate = LEARNING_RATE
-        self.g_type = 'ego' #barabasi_albert,erdos_renyi, powerlaw, small-world, ego
-        self.target_graph = "Digg"
+        self.g_type = g_type #barabasi_albert,erdos_renyi, powerlaw, small-world, ego
+        self.target_graph = target_graph
         self.train_dir = f"../../dataset/synthetic/GSDM"
         self.valid_dir = f"../../dataset/synthetic/GSDM"
         self.dataset_id = 0    # train ego graph id,begin with 0
-        self.num_min = NUM_MIN
-        self.num_max = NUM_MAX
+        self.model_file = model_file
+        self.num_min = num_min
+        self.num_max = num_max
         self.TrainSet = graph.py_GSet()
         self.TestSet = graph.py_GSet()
         self.inputs = dict()
         self.reg_hidden = REG_HIDDEN
         self.utils = utils.py_Utils()
+        self.encoder = encoder
 
         ############----------------------------- variants of DQN(start) ------------------- ###################################
         self.IsHuberloss = False
@@ -149,11 +158,11 @@ class GraphDQN:
 
 #################################################New code for graphDQN#####################################
     def BuildNet(self):
-        # [2, embed_dim]
+        # weight: [2, embed_dim]
         w_n2l = tf.Variable(tf1.truncated_normal([2, self.embedding_size], stddev=initialization_stddev), tf.float32)
         # [embed_dim, embed_dim]
         p_node_conv = tf.Variable(tf1.truncated_normal([self.embedding_size, self.embedding_size], stddev=initialization_stddev), tf.float32)
-        if embeddingMethod == 1:    #'graphsage'
+        if self.encoder == 'gSage':    #'graphsage'
             # [embed_dim, embed_dim]
             p_node_conv2 = tf.Variable(tf1.truncated_normal([self.embedding_size, self.embedding_size], stddev=initialization_stddev), tf.float32)
             # [2*embed_dim, embed_dim]
@@ -216,7 +225,7 @@ class GraphDQN:
             #[batch_size, embed_dim] * [embed_dim, embed_dim] = [batch_size, embed_dim], dense
             y_node_linear = tf.matmul(y_n2npool, p_node_conv)
 
-            if embeddingMethod == 0: # 'structure2vec'
+            if self.encoder == 'S2V': # 'structure2vec'
                 #[node_cnt, embed_dim] + [node_cnt, embed_dim] = [node_cnt, embed_dim], return tensed matrix
                 merged_linear = tf.add(node_linear,input_message)
                 #[node_cnt, embed_dim]
@@ -226,7 +235,7 @@ class GraphDQN:
                 y_merged_linear = tf.add(y_node_linear, y_input_message)
                 #[batch_size, embed_dim]
                 y_cur_message_layer = tf.nn.relu(y_merged_linear)
-            else:   # 'graphsage'
+            else if self.encoder == 'gSage':   # 'graphsage'
                 #[node_cnt, embed_dim] * [embed_dim, embed_dim] = [node_cnt, embed_dim], dense
                 cur_message_layer_linear = tf.matmul(tf.cast(cur_message_layer, tf.float32), p_node_conv2)
                 #[[node_cnt, embed_dim] [node_cnt, embed_dim]] = [node_cnt, 2*embed_dim], return tensed matrix
@@ -240,6 +249,7 @@ class GraphDQN:
                 y_merged_linear = tf.concat([y_node_linear, y_cur_message_layer_linear], 1)
                 #[batch_size, 2*embed_dim]*[2*embed_dim, embed_dim] = [batch_size, embed_dim]
                 y_cur_message_layer = tf.nn.relu(tf.matmul(y_merged_linear, p_node_conv3))
+            else: pass
 
             # normalize by line
             cur_message_layer = tf.nn.l2_normalize(cur_message_layer, axis=1)
@@ -354,7 +364,9 @@ class GraphDQN:
             print("generate new training graphs from ", self.train_dir," with id ", self.dataset_id)
             self.dataset_id += 1
             for i in tqdm(range(1000)):
-                self.InsertGraph(graphs[i], is_test=False)
+                g = graphs[i]
+                # g = nx.convert_node_labels_to_integers(g, first_label=0, ordering='default')
+                self.InsertGraph(g, is_test=False)
             
 
     def ClearTrainGraphs(self):
@@ -383,7 +395,7 @@ class GraphDQN:
         cdef double result_betweeness = 0.0
         if self.g_type in ['erdos_renyi','powerlaw','small-world','barabasi_albert']:
             for i in tqdm(range(n_valid)):
-                g = self.gen_graph(NUM_MIN, NUM_MAX)
+                g = self.gen_graph(self.num_min, self.num_max)
                 g_degree = g.copy()
                 g_betweenness = g.copy()
                 val_degree, sol = self.HXA(g_degree, 'HDA')
@@ -396,13 +408,13 @@ class GraphDQN:
             print("generate new validation graphs from ", self.valid_dir)
             for i in tqdm(range(n_valid)):
                 g = graphs[i]
+                # g = nx.convert_node_labels_to_integers(g, first_label=0, ordering='default')
                 g_degree = g.copy()
                 g_betweenness = g.copy()
                 val_degree, sol = self.HXA(g_degree, 'HDA')
                 result_degree += val_degree
                 val_betweenness, sol = self.HXA(g_betweenness, 'HBA')
                 result_betweeness += val_betweenness
-                print("test graph insert in line 405")
                 self.InsertGraph(g, is_test=True)
 
         print ('Validation of HDA: %.6f'%(result_degree / n_valid))
@@ -611,7 +623,7 @@ class GraphDQN:
 
     def Train(self):
         self.PrepareValidData()
-        self.gen_new_graphs(NUM_MIN, NUM_MAX)
+        self.gen_new_graphs(self.num_min, self.num_max)
 
         cdef int i, iter, idx
         for i in range(10):
@@ -623,18 +635,18 @@ class GraphDQN:
         cdef int loss = 0
         cdef double frac, start, end
         
-        cfd = os.path.dirname(__file__).split("\\")[0]
-        save_dir = '%s/models/%s'%(cfd,self.g_type)
+        # cfd = os.path.dirname(__file__).split("\\")[0]
+        save_dir = 'models/%s'%(self.g_type)
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        VCFile = '%s/ModelVC_%d_%d.csv'%(save_dir, NUM_MIN, NUM_MAX)
+        VCFile = '%s/ModelVC_%d_%d.csv'%(save_dir, self.num_min, self.num_max)
         f_out = open(VCFile, 'w')
         t_train_start = time.time()
         for iter in range(MAX_ITERATION):
             start = time.perf_counter()
             ###########-----------------------normal training data setup(start) -----------------##############################
             if iter and iter % 5000 == 0:
-                self.gen_new_graphs(NUM_MIN, NUM_MAX)
+                self.gen_new_graphs(self.num_min, self.num_max)
             eps = eps_end + max(0., (eps_start - eps_end) * (eps_step - iter) / eps_step)
 
             if iter % 10 == 0:
@@ -656,7 +668,7 @@ class GraphDQN:
                 N_end = time.perf_counter()
                 print ('300 iterations total time: %.2fs\n'%(N_end-N_start))
                 sys.stdout.flush()
-                model_path = '%s/nrange_%d_%d_iter_%d.ckpt' % (save_dir,NUM_MIN, NUM_MAX, iter)
+                model_path = '%s/nrange_%d_%d_iter_%d.ckpt' % (save_dir,self.num_min, self.num_max, iter)
                 self.SaveModel(model_path)
             if iter % UPDATE_TIME == 0:
                 self.TakeSnapShot()
@@ -668,8 +680,7 @@ class GraphDQN:
         # find ckpt file in the model dir
         # return ckpt file name, not include dir
         # get current file dir,different from 'cwd'
-        cfd = os.path.dirname(__file__).split("\\")[0]
-        VCFile = '%s/models/%s/ModelVC_%d_%d.csv'%(cfd,self.g_type, NUM_MIN, NUM_MAX)
+        VCFile = 'models/%s/ModelVC_%d_%d.csv'%(self.g_type, self.num_min, self.num_max)
         print(VCFile)
         vc_list = []
         for line in open(VCFile):
@@ -679,18 +690,18 @@ class GraphDQN:
         min_vc = start_loc + np.argmin(vc_list[start_loc:])
         best_model_iter = 300 * min_vc
         # best_model = os.path.join(cfd,'models/%s/nrange_%d_%d_iter_%d.ckpt' % (self.g_type, NUM_MIN, NUM_MAX, best_model_iter))
-        best_model = 'nrange_%d_%d_iter_%d.ckpt' % (NUM_MIN, NUM_MAX, best_model_iter)
+        best_model = 'nrange_%d_%d_iter_%d.ckpt' % (self.num_min, self.num_max, best_model_iter)
         return best_model
 
 
-    def Evaluate(self, data_test, model_file=None):
-        if model_file == None:  #if user do not specify the model_file
-            model_file = self.findModel()
-            cfd = os.path.dirname(__file__).split("\\")[0]
-            model_file = '%s/models/%s/%s' % (cfd, self.g_type, model_file)
-        print ('The best model is :%s'%(model_file))
+    def Evaluate(self, data_test):
+        if self.model_file == None:  #if user do not specify the model_file
+            self.model_file = 'models/%s/%s' % (self.g_type, self.findModel())
+        else:
+            self.model_file = 'models/%s/%s' % (self.g_type, self.model_file)
+        print ('The best model is :%s'%(self.model_file))
         sys.stdout.flush()
-        self.LoadModel(model_file)
+        self.LoadModel(self.model_file)
         cdef int n_test = 100
         cdef int i
         result_list_score = []
@@ -713,14 +724,17 @@ class GraphDQN:
         return  score_mean, score_std, time_mean, time_std
 
 
-    def EvaluateRealData(self, model_file, data_test, save_dir, stepRatio=0.0025):  #测试真实数据
+    def EvaluateRealData(self, test_graph, result_file, stepRatio=0.0025):  #测试真实数据
         # save sol in save_dir
+        if self.model_file == None:  #if user do not specify the model_file
+            self.model_file = 'models/%s/%s' % (self.g_type, self.findModel())
+        else:
+            self.model_file = 'models/%s/%s' % (self.g_type, self.model_file)
+        print ('The best model is :%s'%(self.model_file))
         sys.stdout.flush()
-        self.LoadModel(model_file)
+        self.LoadModel(self.model_file)
         cdef double solution_time = 0.0
-        test_name = data_test.split('/')[-1]
-        result_file = save_dir + test_name
-        g = nx.read_edgelist(data_test)
+        g = test_graph
         
         print ('testing')
         sys.stdout.flush()
@@ -807,10 +821,10 @@ class GraphDQN:
                     continue
         return sol
 
-    def EvaluateSol(self, data_test, sol_file, strategyID=0, reInsertStep=20):
+    def EvaluateSol(self, test_graph, sol_file, strategyID=0, reInsertStep=20):
         #evaluate the robust given the solution and dataset, strategyID:0,count;2:rank;3:multipy
         sys.stdout.flush()
-        g = nx.read_edgelist(data_test)
+        g = test_graph
         g_inner = self.GenNetwork(g)
         print ('number of nodes:%d'%nx.number_of_nodes(g))
         print ('number of edges:%d'%nx.number_of_edges(g))
@@ -837,10 +851,10 @@ class GraphDQN:
         MaxCCList = self.utils.MaxWccSzList
         return Robustness, MaxCCList
 
-    def EvaluateRealData_random(self, model_file, data_test, save_dir, randomRatio,stepRatio=0.0025):
+    def EvaluateRealData_random(self, data_test, save_dir, randomRatio,stepRatio=0.0025):
         # random remove 1%/5%/10%(randomRatio) nodes before test model
         sys.stdout.flush()
-        self.LoadModel(model_file)
+        self.LoadModel(self.model_file)
         cdef double solution_time = 0.0
         test_name = data_test.split('/')[-1]
         save_dir_local = save_dir+'/StepRatio_%.4f'%stepRatio
@@ -937,6 +951,7 @@ class GraphDQN:
         print('model has been saved success!')
 
     def LoadModel(self,model_path):
+        print(model_path)
         self.saver.restore(self.session, model_path)
         print('restore model from file successfully')
 
