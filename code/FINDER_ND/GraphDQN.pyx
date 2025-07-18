@@ -64,8 +64,7 @@ class GraphDQN:
         target_graph = "Digg",
         num_min = 30,
         num_max = 120,
-        model_file = None,
-        encoder = "gSage"
+        model_file = None
     ):
         # init some parameters
         self.embedding_size = EMBEDDING_SIZE
@@ -83,7 +82,6 @@ class GraphDQN:
         self.inputs = dict()
         self.reg_hidden = REG_HIDDEN
         self.utils = utils.py_Utils()
-        self.encoder = encoder
 
         ############----------------------------- variants of DQN(start) ------------------- ###################################
         self.IsHuberloss = False
@@ -158,11 +156,11 @@ class GraphDQN:
 
 #################################################New code for graphDQN#####################################
     def BuildNet(self):
-        # weight: [2, embed_dim]
+        # [2, embed_dim]
         w_n2l = tf.Variable(tf1.truncated_normal([2, self.embedding_size], stddev=initialization_stddev), tf.float32)
         # [embed_dim, embed_dim]
         p_node_conv = tf.Variable(tf1.truncated_normal([self.embedding_size, self.embedding_size], stddev=initialization_stddev), tf.float32)
-        if self.encoder == 'gSage':    #'graphsage'
+        if embeddingMethod == 1:    #'graphsage'
             # [embed_dim, embed_dim]
             p_node_conv2 = tf.Variable(tf1.truncated_normal([self.embedding_size, self.embedding_size], stddev=initialization_stddev), tf.float32)
             # [2*embed_dim, embed_dim]
@@ -225,7 +223,7 @@ class GraphDQN:
             #[batch_size, embed_dim] * [embed_dim, embed_dim] = [batch_size, embed_dim], dense
             y_node_linear = tf.matmul(y_n2npool, p_node_conv)
 
-            if self.encoder == 'S2V': # 'structure2vec'
+            if embeddingMethod == 0: # 'structure2vec'
                 #[node_cnt, embed_dim] + [node_cnt, embed_dim] = [node_cnt, embed_dim], return tensed matrix
                 merged_linear = tf.add(node_linear,input_message)
                 #[node_cnt, embed_dim]
@@ -235,7 +233,7 @@ class GraphDQN:
                 y_merged_linear = tf.add(y_node_linear, y_input_message)
                 #[batch_size, embed_dim]
                 y_cur_message_layer = tf.nn.relu(y_merged_linear)
-            else if self.encoder == 'gSage':   # 'graphsage'
+            else:   # 'graphsage'
                 #[node_cnt, embed_dim] * [embed_dim, embed_dim] = [node_cnt, embed_dim], dense
                 cur_message_layer_linear = tf.matmul(tf.cast(cur_message_layer, tf.float32), p_node_conv2)
                 #[[node_cnt, embed_dim] [node_cnt, embed_dim]] = [node_cnt, 2*embed_dim], return tensed matrix
@@ -249,7 +247,6 @@ class GraphDQN:
                 y_merged_linear = tf.concat([y_node_linear, y_cur_message_layer_linear], 1)
                 #[batch_size, 2*embed_dim]*[2*embed_dim, embed_dim] = [batch_size, embed_dim]
                 y_cur_message_layer = tf.nn.relu(tf.matmul(y_merged_linear, p_node_conv3))
-            else: pass
 
             # normalize by line
             cur_message_layer = tf.nn.l2_normalize(cur_message_layer, axis=1)
